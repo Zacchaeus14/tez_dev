@@ -413,13 +413,21 @@ class Tez:
         self._set_validation_epoch_start(data_loader)
         losses = AverageMeter()
 
+        outputs, labels = [], []
         for batch_index, data in enumerate(data_loader):
             self.valid_batch_index = batch_index
             self.train_state = enums.TrainingState.VALID_STEP_START
             with torch.no_grad():
-                loss, metrics = self.predict_step(data)
-            losses, monitor = self._update_loss_metrics(losses, loss, metrics)
+                # loss, metrics = self.predict_step(data)
+                output, loss, metrics = self.model_fn(data)
+                outputs.append(output)
+                labels.append(data['labels'])
+            losses, _ = self._update_loss_metrics(losses, loss, metrics)
             self.train_state = enums.TrainingState.VALID_STEP_END
+        outputs = torch.vstack(outputs)
+        labels = torch.vstack(labels)
+        monitor = self.model.monitor_metrics(outputs, labels)
+        monitor = {k: v.cpu().detach().item() for k, v in monitor.items()}
         self._set_validation_epoch_end(losses, monitor)
 
     def _step_scheduler_after_epoch(self):
