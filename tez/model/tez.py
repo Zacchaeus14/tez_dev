@@ -14,7 +14,7 @@ from tez.logger import logger
 from tez.utils import AverageMeter
 
 from .config import TezConfig
-
+from .awp import AWP
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -165,6 +165,18 @@ class Tez:
         self._callback_runner = CallbackRunner(self.callbacks, self)
         self.train_state = enums.TrainingState.TRAIN_START
 
+        self.attack_started = False
+        self.adv_after_step = -1
+        if self.config.adv_lr > 0 and self.config.adv_eps > 0:
+            self.adv_after_step = int(self.config.adv_after_epoch * len(self.train_dataset) / self.config.training_batch_size)
+            self.awp = AWP(self.model,
+                           self.optimizer,
+                           adv_lr=self.config.adv_lr,
+                           adv_eps=self.config.adv_eps,
+                           scaler=self.scaler,
+                           device=self.config.device)
+            logger.info(f"Attack after step {self.adv_after_step}")
+
     @property
     def model_state(self):
         return self._model_state
@@ -260,6 +272,14 @@ class Tez:
     def _backward(self, loss):
         self._driver.backward(loss)
 
+    def _attack(self, data):
+        if (self.adv_after_step == -1) or (self._train_step < self.adv_after_step):
+            return
+        if not self.attack_started:
+            logger.info("Attack starts!")
+            self.attack_started = True
+        self.awp.attack_backward(data)
+
     def _clip_grad_norm(self):
         if self.config.clip_grad_norm != -1:
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad_norm)
@@ -280,6 +300,7 @@ class Tez:
         with self._driver.accumulate(self.model):
             _, loss, metrics = self.model_fn(data)
             self._backward(loss)
+            self._attack(data)
             self._clip_grad_norm()
             self._step()
             self._zero_grad()
