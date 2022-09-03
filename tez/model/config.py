@@ -24,7 +24,8 @@ class TezConfig:
 
     # data loader parameters
     train_shuffle: Optional[bool] = True
-    valid_shuffle: Optional[bool] = True
+    # valid_shuffle: Optional[bool] = True
+    valid_shuffle: Optional[bool] = False
     train_drop_last: Optional[bool] = False
     valid_drop_last: Optional[bool] = False
     test_drop_last: Optional[bool] = False
