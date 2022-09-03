@@ -147,7 +147,8 @@ class Model(nn.Module):
         self.train_state = enums.TrainingState.TRAIN_START
 
     def monitor_metrics(self, *args, **kwargs):
-        return
+        # return
+        return {}
 
     def loss(self, *args, **kwargs):
         return
@@ -255,23 +256,31 @@ class Model(nn.Module):
             tk0 = data_loader
         else:
             tk0 = tqdm(data_loader, total=len(data_loader))
+        outputs, labels = [], []
         for b_idx, data in enumerate(tk0):
             self.train_state = enums.TrainingState.VALID_STEP_START
             with torch.no_grad():
-                loss, metrics = self.validate_one_step(data)
+                # loss, metrics = self.validate_one_step(data)
+                output, loss, _ = self.model_fn(data)
+            outputs.append(output)
+            labels.append(data['labels'])
             self.train_state = enums.TrainingState.VALID_STEP_END
             losses.update(loss.item(), data_loader.batch_size)
-            if b_idx == 0:
-                metrics_meter = {k: AverageMeter() for k in metrics}
-            monitor = {}
-            for m_m in metrics_meter:
-                metrics_meter[m_m].update(metrics[m_m], data_loader.batch_size)
-                monitor[m_m] = metrics_meter[m_m].avg
+            # if b_idx == 0:
+            #     metrics_meter = {k: AverageMeter() for k in metrics}
+            # monitor = {}
+            # for m_m in metrics_meter:
+            #     metrics_meter[m_m].update(metrics[m_m], data_loader.batch_size)
+            #     monitor[m_m] = metrics_meter[m_m].avg
             if not self.using_tpu:
-                tk0.set_postfix(loss=losses.avg, stage="valid", **monitor)
+                # tk0.set_postfix(loss=losses.avg, stage="valid", **monitor)
+                tk0.set_postfix(loss=losses.avg, stage="valid")
             self.current_valid_step += 1
+        outputs = torch.vstack(outputs)
+        labels = torch.vstack(labels)
         if not self.using_tpu:
             tk0.close()
+        monitor = self.monitor_metrics(outputs, labels)
         self.update_metrics(losses=losses, monitor=monitor)
         return losses.avg
 
