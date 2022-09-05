@@ -173,7 +173,7 @@ class Tez:
                            self.optimizer,
                            adv_lr=self.config.adv_lr,
                            adv_eps=self.config.adv_eps,
-                           scaler=self.scaler,
+                           scaler=self._driver.scaler,
                            device=self.config.device)
             logger.info(f"Attack after step {self.adv_after_step}")
 
