@@ -86,7 +86,7 @@ class EarlyStopping(Callback):
 
     def evict_checkpoint(self):
         fps = glob(f'{self.model_path}_*')
-        if self.save_total_limit == -1 or fps <= self.save_total_limit:
+        if self.save_total_limit == -1 or len(fps) <= self.save_total_limit:
             return
         counters = [int(fp.split('_')[-1]) for fp in fps]
         scores = [self.save_scores[c] for c in counters]
@@ -96,5 +96,5 @@ class EarlyStopping(Callback):
             fp_del = f'{self.model_path}_{cs[-1][0]}'
         else:
             fp_del = f'{self.model_path}_{cs[0][0]}'
-        logger.info("Reach save total limit, deleting", fp_del)
+        logger.info(f"save total limit = {self.save_total_limit}, found {len(fps)}, deleting", fp_del)
         os.remove(fp_del)
