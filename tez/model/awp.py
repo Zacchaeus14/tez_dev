@@ -39,16 +39,20 @@ class AWP:
 
     def _attack_step(self):
         e = 1e-6
-        for name, param in self.model.named_parameters():
-            if param.requires_grad and param.grad is not None and self.adv_param in name:
-                norm1 = torch.norm(param.grad)
-                norm2 = torch.norm(param.data.detach())
-                if norm1 != 0 and not torch.isnan(norm1):
-                    r_at = self.adv_lr * param.grad / (norm1 + e) * (norm2 + e)
-                    param.data.add_(r_at)
-                    param.data = torch.min(
-                        torch.max(param.data, self.backup_eps[name][0]), self.backup_eps[name][1]
-                    )
+        # for name, param in self.model.named_parameters():
+        for group in self.param_groups:
+            for i, param in enumerate(group["params"]):
+                name = group["names"][i]
+                if param.requires_grad and param.grad is not None and self.adv_param in name:
+                    norm1 = torch.norm(param.grad)
+                    norm2 = torch.norm(param.data.detach())
+                    if norm1 != 0 and not torch.isnan(norm1):
+                        lr = self.adv_lr * group["lr"]
+                        r_at = lr * param.grad / (norm1 + e) * (norm2 + e)
+                        param.data.add_(r_at)
+                        param.data = torch.min(
+                            torch.max(param.data, self.backup_eps[name][0]), self.backup_eps[name][1]
+                        )
                 # param.data.clamp_(*self.backup_eps[name])
 
     def _save(self):
