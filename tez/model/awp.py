@@ -40,7 +40,7 @@ class AWP:
     def _attack_step(self):
         e = 1e-6
         # for name, param in self.model.named_parameters():
-        for group in self.param_groups:
+        for group in self.optimizer.param_groups:
             for i, param in enumerate(group["params"]):
                 name = group["names"][i]
                 if param.requires_grad and param.grad is not None and self.adv_param in name:
