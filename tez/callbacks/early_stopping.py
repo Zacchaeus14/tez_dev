@@ -1,4 +1,4 @@
-import os
+import os, json
 import numpy as np
 from accelerate.logging import get_logger
 
@@ -42,6 +42,11 @@ class EarlyStopping(Callback):
 
     def check(self, tez_trainer):
         epoch_score = tez_trainer.metrics[self.model_state][self.monitor_value]
+        if self.save_total_limit != 1:
+            self.save_scores[self.save_counter] = epoch_score
+            self.save_checkpoint(epoch_score, tez_trainer)
+            self.save_counter += 1
+            return
         if self.mode == "min":
             score = -1.0 * epoch_score
         else:
@@ -71,22 +76,23 @@ class EarlyStopping(Callback):
         self.check(tez_trainer)
 
     def save_checkpoint(self, epoch_score, tez_trainer):
-        if epoch_score not in [-np.inf, np.inf, -np.nan, np.nan]:
-            improvement_string = f"{self.val_score:.5f} -> {epoch_score:.5f}. Saving model!"
-            logger.info(improvement_string)
-            self.history.append(improvement_string)
-            if self.save_total_limit == 1:
-                tez_trainer.save(self.model_path, weights_only=self.save_weights_only)
-            else:
-                tez_trainer.save(f'{self.model_path}_{self.save_counter}', weights_only=self.save_weights_only)
-                self.save_scores[self.save_counter] = epoch_score
-                self.save_counter += 1
-                self.evict_checkpoint()
+        if epoch_score in [-np.inf, np.inf, -np.nan, np.nan]:
+            return
+        improvement_string = f"{self.val_score:.5f} -> {epoch_score:.5f}. Saving model!"
+        logger.info(improvement_string)
+        self.history.append(improvement_string)
+        if self.save_total_limit == 1:
+            tez_trainer.save(self.model_path, weights_only=self.save_weights_only)
+        else:
+            tez_trainer.save(f'{self.model_path}_{self.save_counter}', weights_only=self.save_weights_only)
+            self.evict_checkpoint()
+            with open(f'{self.model_path}-save_scores.json', 'w') as f:
+                json.dump(self.save_scores, f, indent=4)
         self.val_score = epoch_score
 
     def evict_checkpoint(self):
         fps = glob(f'{self.model_path}_*')
-        if self.save_total_limit == -1 or fps <= self.save_total_limit:
+        if self.save_total_limit == -1 or len(fps) <= self.save_total_limit:
             return
         counters = [int(fp.split('_')[-1]) for fp in fps]
         scores = [self.save_scores[c] for c in counters]
@@ -96,5 +102,5 @@ class EarlyStopping(Callback):
             fp_del = f'{self.model_path}_{cs[-1][0]}'
         else:
             fp_del = f'{self.model_path}_{cs[0][0]}'
-        logger.info("Reach save total limit, deleting", fp_del)
+        logger.info(f"save total limit = {self.save_total_limit}, found {len(fps)}, deleting", fp_del)
         os.remove(fp_del)
